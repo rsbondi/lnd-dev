@@ -9,7 +9,9 @@ import (
 	"github.com/gdamore/tcell"
 	"github.com/rivo/tview"
 	"net/http"
+	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"text/template"
 )
@@ -20,7 +22,7 @@ var app *tview.Application
 var cli *tview.InputField
 var list *tview.DropDown
 var cliresult *tview.TextView
-var currentnode string
+var currentnode, nNodes, nChannels string
 
 func main() {
 	cliresult = tview.NewTextView().SetDynamicColors(true)
@@ -31,7 +33,14 @@ func main() {
 	currentnode = ""
 
 	form = tview.NewForm().
-		AddInputField("Number of Nodes", "", 5, nil, nil).
+		AddInputField("Number of Nodes", "", 5, nil, func(t string) {
+			_, err := strconv.Atoi(t)
+			if err != nil {
+				t = nNodes
+				return
+			}
+			nNodes = t
+		}).
 		AddInputField("Incoming Connections per Node", "", 5, nil, nil).
 		AddButton("Ok", setUI).
 		AddButton("Cancel", func() {
@@ -48,7 +57,8 @@ func main() {
 }
 
 func setUI() {
-	resp, err := http.Get("https://randomuser.me/api/?results=5&inc=name")
+	url := fmt.Sprintf("https://randomuser.me/api/?results=%s&inc=name", nNodes)
+	resp, err := http.Get(url)
 	if err != nil {
 		panic(err)
 	}
@@ -80,6 +90,19 @@ func setUI() {
 		return key
 	})
 
+	dir, err := os.Getwd()
+	if err != nil {
+		panic(err)
+	}
+	dir = fmt.Sprintf("%s/profiles", dir)
+
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		err = os.MkdirAll(dir, 0755)
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	for i, n := range names.Results {
 		var b bytes.Buffer
 		name := n.Name.Last
@@ -90,8 +113,12 @@ func setUI() {
 		cmd := fmt.Sprintf("lncli --rpcserver=localhost:1000%d --macaroonpath=profiles/user%d/data/chain/bitcoin/regtest/admin.macaroon", i+1, i+1)
 		aliases[n.Name.Last] = &alias{&name, &cmd}
 
-		// write this to file
-		// fmt.Fprintf(cliresult, "%q\n", b)
+		f, err := os.Create(fmt.Sprintf("profiles/user%d", i+1))
+		if err != nil {
+			panic(err)
+		}
+		defer f.Close()
+		_, err = f.Write(b.Bytes())
 	}
 
 	aliasKeys := sortAliasKeys(aliases)
