@@ -1,0 +1,214 @@
+package main
+
+import (
+	"bufio"
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"github.com/atotto/clipboard"
+	"github.com/gdamore/tcell"
+	"github.com/rivo/tview"
+	"net/http"
+	"os/exec"
+	"strings"
+	"text/template"
+)
+
+var flex *tview.Flex
+var form *tview.Form
+var app *tview.Application
+var cli *tview.InputField
+var list *tview.DropDown
+var cliresult *tview.TextView
+var currentnode string
+
+func main() {
+	cliresult = tview.NewTextView().SetDynamicColors(true)
+	cli = tview.NewInputField()
+	list = tview.NewDropDown()
+
+	app = tview.NewApplication()
+	currentnode = ""
+
+	form = tview.NewForm().
+		AddInputField("Number of Nodes", "", 5, nil, nil).
+		AddInputField("Incoming Connections per Node", "", 5, nil, nil).
+		AddButton("Ok", setUI).
+		AddButton("Cancel", func() {
+			app.Stop()
+		})
+	form.SetBorder(true).SetTitle("Enter node data").SetTitleAlign(tview.AlignLeft)
+
+	flex = tview.NewFlex().SetDirection(tview.FlexRow)
+	flex.AddItem(form, 0, 5, true)
+
+	if err := app.SetRoot(flex, true).Run(); err != nil {
+		panic(err)
+	}
+}
+
+func setUI() {
+	resp, err := http.Get("https://randomuser.me/api/?results=5&inc=name")
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+	reader := bufio.NewReader(resp.Body)
+	decoder := json.NewDecoder(reader)
+	names := &apiresults{}
+	decoder.Decode(&names)
+
+	col := tview.NewFlex().SetDirection(tview.FlexColumn)
+	col.AddItem(list, 40, 1, false)
+	col.AddItem(cli, 0, 1, true)
+	flex.AddItem(col, 3, 1, true)
+	flex.AddItem(cliresult, 0, 5, false)
+	flex.RemoveItem(form)
+
+	tmpl, _ := template.New("view").Parse(configtemplate)
+	aliases := make(map[string]*alias)
+
+	nodes := make(map[string]*node)
+
+	cliresult.SetBorder(false).SetTitle("CLI Result (Ctrl+y)")
+
+	cliresult.SetInputCapture(func(key *tcell.EventKey) *tcell.EventKey {
+		if key.Key() == tcell.KeyCtrlL {
+			cliresult.SetText("")
+			nodes[currentnode].Buff = ""
+		}
+		return key
+	})
+
+	for i, n := range names.Results {
+		var b bytes.Buffer
+		name := n.Name.Last
+		view := &cfgview{}
+		view.N = i + 1
+		view.Name = n.Name.Last
+		err = tmpl.Execute(&b, view)
+		cmd := fmt.Sprintf("lncli --rpcserver=localhost:1000%d --macaroonpath=profiles/user%d/data/chain/bitcoin/regtest/admin.macaroon", i+1, i+1)
+		aliases[n.Name.Last] = &alias{&name, &cmd}
+
+		// write this to file
+		// fmt.Fprintf(cliresult, "%q\n", b)
+	}
+
+	aliasKeys := sortAliasKeys(aliases)
+	for _, a := range aliasKeys {
+		s := -1
+		anode := &node{"", []string{}, &s}
+		nodes[*aliases[a].Name] = anode
+
+		name := *aliases[a].Name
+		list.AddOption(*aliases[a].Name, func() {
+			cli.SetText("")
+			currentnode = name
+			cliresult.SetText(nodes[name].Buff)
+			app.SetFocus(cli)
+		})
+	}
+
+	confcmd := fmt.Sprint("bitcoin-cli --conf=./bitcoin.conf")
+	name := "Regtest"
+	aliases[name] = &alias{&name, &confcmd}
+	s := -1
+	anode := &node{"", []string{}, &s}
+	nodes[name] = anode
+
+	list.AddOption(name, func() {
+		cli.SetText("")
+		currentnode = name
+		cliresult.SetText(nodes[name].Buff)
+		app.SetFocus(cli)
+	})
+	list.AddOption("Quit", func() {
+		app.Stop()
+	})
+
+	list.SetBorder(true).SetTitle("Nodes (Ctrl+n)")
+	list.SetCurrentOption(0)
+	cli.
+		SetPlaceholder("Enter cli command - use Ctrl+v to paste (no shift)").
+		SetFieldBackgroundColor(tcell.ColorBlack).
+		SetFieldWidth(0).SetBorder(true).SetTitle("CLI (Ctrl+i) for CLI (Ctrl+y) for results")
+
+	cli.SetInputCapture(func(key *tcell.EventKey) *tcell.EventKey {
+		if key.Key() == tcell.KeyEnter {
+			text := cli.GetText()
+			cmdfmt := fmt.Sprintf("[#ff0000]# %s[white]\n", text)
+			fmt.Fprintf(cliresult, cmdfmt)
+			if text == "" {
+				fmt.Fprintf(cliresult, "Please provide a command to execute\n")
+				return key
+			}
+			args, err := parseCommandLine(text)
+			if err != nil {
+				fmt.Fprintf(cliresult, "%s\n", err.Error())
+			}
+			clicmd := strings.Split(*aliases[currentnode].Path, " ")
+			cliarg := []string{clicmd[1]}
+			cliargs := append(cliarg, args...)
+			cmd := exec.Command(clicmd[0], cliargs...)
+			cmd.Stdin = strings.NewReader("some input")
+			var out bytes.Buffer
+			cmd.Stdout = &out
+			err = cmd.Run()
+			if err != nil {
+				fmt.Fprintf(cliresult, "%s\n", err.Error())
+			}
+
+			fmt.Fprintf(cliresult, "%s\n", tview.Escape(out.String()))
+			nodes[currentnode].Buff += cmdfmt
+			nodes[currentnode].Buff += out.String()
+			nodes[currentnode].Cmds = append(nodes[currentnode].Cmds, cli.GetText())
+			*nodes[currentnode].CmdIndex = len(nodes[currentnode].Cmds)
+
+			cli.SetText("")
+		} else if key.Key() == tcell.KeyUp {
+			index := nodes[currentnode].CmdIndex
+			if *index > 0 {
+				*index = *index - 1
+			}
+			if *index >= 0 && *index < len(nodes[currentnode].Cmds) {
+				cli.SetText(nodes[currentnode].Cmds[*index])
+			}
+		} else if key.Key() == tcell.KeyDown {
+			index := nodes[currentnode].CmdIndex
+			if *index == len(nodes[currentnode].Cmds)-1 {
+				cli.SetText("")
+				*index = *index + 1
+				return key
+			}
+			if *index < len(nodes[currentnode].Cmds)-1 {
+				*index = *index + 1
+			}
+			if *index >= 0 && *index < len(nodes[currentnode].Cmds) {
+				cli.SetText(nodes[currentnode].Cmds[*index])
+			}
+		} else if key.Key() == tcell.KeyCtrlV {
+			clip, err := clipboard.ReadAll()
+			if err != nil {
+				fmt.Fprintf(cliresult, "%s\n", err.Error())
+			} else {
+				full := strings.Replace(clip, "\n", "", -1)
+				cli.SetText(fmt.Sprintf("%s%s", cli.GetText(), full)) // TODO: this only paste to end, fix for insert
+			}
+		}
+		return key
+	})
+
+	app.SetInputCapture(func(key *tcell.EventKey) *tcell.EventKey {
+		if key.Key() == tcell.KeyCtrlN {
+			app.SetFocus(list)
+			list.InputHandler()(tcell.NewEventKey(tcell.KeyEnter, '0', tcell.ModNone), func(tview.Primitive) { app.SetFocus(list) })
+		} else if key.Key() == tcell.KeyCtrlI {
+			cli.SetText("")
+			app.SetFocus(cli)
+		} else if key.Key() == tcell.KeyCtrlY {
+			app.SetFocus(cliresult)
+		}
+		return key
+	})
+
+}
