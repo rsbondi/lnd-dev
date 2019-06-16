@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"text/template"
 )
 
@@ -21,12 +22,15 @@ var app *tview.Application
 var cli *tview.InputField
 var list *tview.DropDown
 var cliresult *tview.TextView
-var currentnode, nNodes, nChannels string
+var status *tview.TextView
+var currentnode, nNodes, nChannels, workingdir string
 var aliases map[string]*alias
 var nodes map[string]*node
+var commands []*exec.Cmd
 
 func main() {
 	cliresult = tview.NewTextView().SetDynamicColors(true)
+	status = tview.NewTextView()
 	cli = tview.NewInputField()
 	list = tview.NewDropDown()
 
@@ -48,6 +52,7 @@ func main() {
 
 	flex = tview.NewFlex().SetDirection(tview.FlexRow)
 	flex.AddItem(form, 0, 5, true)
+	flex.AddItem(status, 0, 5, false)
 
 	if err := app.SetRoot(flex, true).Run(); err != nil {
 		panic(err)
@@ -75,6 +80,7 @@ func swapForm() {
 	flex.AddItem(col, 3, 1, true)
 	flex.AddItem(cliresult, 0, 5, false)
 	flex.RemoveItem(form)
+	flex.RemoveItem(status)
 }
 
 func defineNodes(r []apiname) map[string]*alias {
@@ -82,6 +88,7 @@ func defineNodes(r []apiname) map[string]*alias {
 	if err != nil {
 		panic(err)
 	}
+	workingdir = dir
 	dir = fmt.Sprintf("%s/profiles", dir)
 
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
@@ -210,6 +217,18 @@ func populateList() {
 		app.SetFocus(cli)
 	})
 	list.AddOption("Quit", func() {
+		// kill bitcoind
+		cmd := exec.Command("bitcoin-cli", fmt.Sprintf("-conf=%s/bitcoin.conf", workingdir), "stop")
+		cmd.Run()
+
+		// kill all lnd instances
+		for _, c := range commands {
+			fmt.Fprintf(cliresult, "Killing %d: %q\n", c.Process.Pid, c.Args)
+			if err := syscall.Kill(c.Process.Pid, syscall.SIGKILL); err != nil {
+				panic(fmt.Sprintf("failed to kill process: %s", err.Error()))
+			}
+
+		}
 		app.Stop()
 	})
 
@@ -220,7 +239,6 @@ func populateList() {
 
 func setUI() {
 	names := randomNames()
-	swapForm()
 
 	nodes = make(map[string]*node)
 
@@ -258,4 +276,26 @@ func setUI() {
 		return key
 	})
 
+	launchNodes()
+}
+
+func launchNodes() {
+	fmt.Fprintln(status, "launching bitcoin node")
+
+	cmd := exec.Command("bitcoind", fmt.Sprintf("-conf=%s/bitcoin.conf", workingdir))
+
+	err := cmd.Start()
+
+	if err != nil {
+		fmt.Fprintf(status, "%s\n", err.Error())
+	}
+
+	u := 1
+	for _, v := range aliases {
+		// TODO: actually launch
+		fmt.Fprintf(status, "launching node for %s\n with lnd --configfile=profiles/user%d command=%s\n", *v.Name, u, *v.Path)
+		//	commands = append(commands, cmd)
+		u++
+	}
+	swapForm()
 }
