@@ -64,3 +64,5 @@ func sortAliasKeys(a map[string]*alias) []string {
 	sort.Strings(keys)
 	return keys
 }
+
+const BASE_PORT = 10000

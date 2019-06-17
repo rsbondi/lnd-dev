@@ -12,8 +12,8 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"syscall"
 	"text/template"
+	"time"
 )
 
 var flex *tview.Flex
@@ -26,7 +26,6 @@ var status *tview.TextView
 var currentnode, nNodes, nChannels, workingdir string
 var aliases map[string]*alias
 var nodes map[string]*node
-var commands []*exec.Cmd
 
 func main() {
 	cliresult = tview.NewTextView().SetDynamicColors(true)
@@ -83,6 +82,15 @@ func swapForm() {
 	flex.RemoveItem(status)
 }
 
+func ensureDir(dir string) {
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		err = os.MkdirAll(dir, 0755)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
 func defineNodes(r []apiname) map[string]*alias {
 	dir, err := os.Getwd()
 	if err != nil {
@@ -90,13 +98,7 @@ func defineNodes(r []apiname) map[string]*alias {
 	}
 	workingdir = dir
 	dir = fmt.Sprintf("%s/profiles", dir)
-
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		err = os.MkdirAll(dir, 0755)
-		if err != nil {
-			panic(err)
-		}
-	}
+	ensureDir(dir)
 
 	tmpl, _ := template.New("view").Parse(configtemplate)
 	aliases = make(map[string]*alias)
@@ -108,10 +110,13 @@ func defineNodes(r []apiname) map[string]*alias {
 		view.N = i + 1
 		view.Name = n.Name.Last
 		err = tmpl.Execute(&b, view)
-		cmd := fmt.Sprintf("lncli --rpcserver=localhost:1000%d --macaroonpath=profiles/user%d/data/chain/bitcoin/regtest/admin.macaroon", i+1, i+1)
+		cmd := fmt.Sprintf("lncli --rpcserver=localhost:%d --macaroonpath=profiles/user%d/data/chain/bitcoin/regtest/admin.macaroon", BASE_PORT+i+1, i+1)
 		aliases[n.Name.Last] = &alias{&name, &cmd}
 
-		f, err := os.Create(fmt.Sprintf("profiles/user%d", i+1))
+		udir := fmt.Sprintf("profiles/user%d", i+1)
+		ensureDir(udir)
+
+		f, err := os.Create(fmt.Sprintf("profiles/user%d/lnd.conf", i+1))
 		if err != nil {
 			panic(err)
 		}
@@ -136,8 +141,10 @@ func cliInputCapture(key *tcell.EventKey) *tcell.EventKey {
 			fmt.Fprintf(cliresult, "%s\n", err.Error())
 		}
 		clicmd := strings.Split(*aliases[currentnode].Path, " ")
-		cliarg := []string{clicmd[1]}
+
+		cliarg := clicmd[1:]
 		cliargs := append(cliarg, args...)
+		fmt.Fprintf(cliresult, "LNCLI COMMAND: %s - %q\n", clicmd, cliargs)
 		cmd := exec.Command(clicmd[0], cliargs...)
 		cmd.Stdin = strings.NewReader("some input")
 		var out bytes.Buffer
@@ -221,14 +228,13 @@ func populateList() {
 		cmd := exec.Command("bitcoin-cli", fmt.Sprintf("-conf=%s/bitcoin.conf", workingdir), "stop")
 		cmd.Run()
 
-		// kill all lnd instances
-		for _, c := range commands {
-			fmt.Fprintf(cliresult, "Killing %d: %q\n", c.Process.Pid, c.Args)
-			if err := syscall.Kill(c.Process.Pid, syscall.SIGKILL); err != nil {
-				panic(fmt.Sprintf("failed to kill process: %s", err.Error()))
-			}
-
+		for u := 1; u < len(aliases); u++ {
+			host := fmt.Sprintf("--rpcserver=localhost:%d", BASE_PORT+u)
+			macaroon := fmt.Sprintf("--macaroonpath=profiles/user%d/data/chain/bitcoin/regtest/admin.macaroon", u)
+			cmd := exec.Command("lncli", host, macaroon, "stop")
+			cmd.Run()
 		}
+
 		app.Stop()
 	})
 
@@ -290,11 +296,22 @@ func launchNodes() {
 		fmt.Fprintf(status, "%s\n", err.Error())
 	}
 
+	time.Sleep(2 * time.Second)
 	u := 1
 	for _, v := range aliases {
-		// TODO: actually launch
-		fmt.Fprintf(status, "launching node for %s\n with lnd --configfile=profiles/user%d command=%s\n", *v.Name, u, *v.Path)
-		//	commands = append(commands, cmd)
+		if *v.Name == "Regtest" {
+			continue
+		}
+		fmt.Fprintf(status, "launching node for %s\n with lnd --configfile=%s/profiles/user%d/lnd.conf command=%s\n", *v.Name, workingdir, u, *v.Path)
+		cmd := exec.Command("lnd", fmt.Sprintf("--configfile=%s/profiles/user%d/lnd.conf", workingdir, u))
+
+		err := cmd.Start()
+
+		if err != nil {
+			fmt.Fprintf(status, "%s\n", err.Error())
+		}
+
+		time.Sleep(1 * time.Second)
 		u++
 	}
 	swapForm()
