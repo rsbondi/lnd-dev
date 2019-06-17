@@ -1,7 +1,9 @@
 package main
 
 import (
+	"os/exec"
 	"sort"
+	"strings"
 )
 
 type name struct {
@@ -52,6 +54,15 @@ type node struct {
 type alias struct {
 	Name *string
 	Path *string
+}
+
+func (a *alias) Command(c ...string) *exec.Cmd {
+	clicmd := strings.Split(*a.Path, " ")
+	cliarg := clicmd[1:]
+	cliargs := append(cliarg, c...)
+	cmd := exec.Command(clicmd[0], cliargs...)
+	return cmd
+
 }
 
 func sortAliasKeys(a map[string]*alias) []string {

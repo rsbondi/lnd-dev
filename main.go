@@ -140,12 +140,8 @@ func cliInputCapture(key *tcell.EventKey) *tcell.EventKey {
 		if err != nil {
 			fmt.Fprintf(cliresult, "%s\n", err.Error())
 		}
-		clicmd := strings.Split(*aliases[currentnode].Path, " ")
 
-		cliarg := clicmd[1:]
-		cliargs := append(cliarg, args...)
-		fmt.Fprintf(cliresult, "LNCLI COMMAND: %s - %q\n", clicmd, cliargs)
-		cmd := exec.Command(clicmd[0], cliargs...)
+		cmd := aliases[currentnode].Command(args...)
 		cmd.Stdin = strings.NewReader("some input")
 		var out bytes.Buffer
 		cmd.Stdout = &out
@@ -210,7 +206,7 @@ func populateList() {
 		})
 	}
 
-	confcmd := fmt.Sprint("bitcoin-cli --conf=./bitcoin.conf")
+	confcmd := fmt.Sprintf("bitcoin-cli -conf=%s/bitcoin.conf", workingdir)
 	name := "Regtest"
 	aliases[name] = &alias{&name, &confcmd}
 	s := -1
@@ -234,6 +230,8 @@ func populateList() {
 			cmd := exec.Command("lncli", host, macaroon, "stop")
 			cmd.Run()
 		}
+
+		os.RemoveAll(fmt.Sprintf("%s/profiles", workingdir))
 
 		app.Stop()
 	})
@@ -311,7 +309,29 @@ func launchNodes() {
 			fmt.Fprintf(status, "%s\n", err.Error())
 		}
 
-		time.Sleep(1 * time.Second)
+		time.Sleep(200 * time.Millisecond)
+
+		// TODO: I think there is a subprocess issue, probable create with grpc
+		// cmd = v.Command("create")
+		// stdin, err := cmd.StdinPipe()
+
+		// cmd.Start()
+
+		// stdin.Write([]byte("password\n"))
+		// stdin.Write([]byte("password\n"))
+		// stdin.Write([]byte("n\n"))
+		// stdin.Write([]byte("\n"))
+
+		/*
+		   create
+		   Input wallet password:
+		   Confirm wallet password:
+
+		   Do you have an existing cipher seed mnemonic you want to use? (Enter y/n): n
+
+		   Your cipher seed can optionally be encrypted.
+		   Input your passphrase if you wish to encrypt it (or press enter to proceed without a cipher seed passphrase):
+		*/
 		u++
 	}
 	swapForm()
