@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"os/user"
 	"path"
+	"sort"
 	"time"
 )
 
@@ -133,6 +134,7 @@ func (l *Launcher) createWallets() {
 			return
 		}
 		fmt.Fprintf(status, "%s\n", res)
+		time.Sleep(2 * time.Second)
 
 		u++
 	}
@@ -141,9 +143,11 @@ func (l *Launcher) createWallets() {
 func (l *Launcher) createChannels() {
 	aliaskeys := make([]string, 0, len(l.aliases))
 
+	connections := make(map[string][]string)
 	for key := range l.aliases {
 		if key != "Regtest" {
 			aliaskeys = append(aliaskeys, key)
+			connections[key] = []string{}
 		}
 	}
 
@@ -159,16 +163,24 @@ func (l *Launcher) createChannels() {
 		n = 1 // temp hack to test
 		fmt.Fprintf(status, "random channels: %d of %d\n", n, l.nChannels)
 		for c := 0; c < n; c++ {
-			src := l.aliases[aliaskeys[0]] //v
+			src := v
 			var dest *alias
-			dest = l.aliases[aliaskeys[1]]
-			// for {
-			// 	rand.Seed(time.Now().UnixNano())
-			// 	dest = l.aliases[aliaskeys[rand.Intn(len(aliaskeys))]]
-			// 	if dest.Name != src.Name {
-			// 		break
-			// 	}
-			// }
+			i := 0
+			for {
+				rand.Seed(time.Now().UnixNano())
+				dest = l.aliases[aliaskeys[rand.Intn(len(aliaskeys))]]
+				if dest.Name != src.Name && sort.SearchStrings(connections[*src.Name], *dest.Name) == len(connections[*src.Name]) {
+					connections[*src.Name] = append(connections[*src.Name], *dest.Name)
+					break
+				}
+				i++
+				if i > n+10 { // too many tries
+					break
+				}
+			}
+			if i > n+10 {
+				continue
+			}
 
 			destrpc := grpcClient(dest)
 
@@ -180,11 +192,6 @@ func (l *Launcher) createChannels() {
 			}
 
 			srcrpc := grpcClient(src)
-			// srcInfoResp, err := srcrpc.GetInfo(ctx, &lnrpc.GetInfoRequest{})
-			// if err != nil {
-			// 	fmt.Fprintf(status, "Cannot get info from node: %s", err)
-			// 	return
-			// }
 			connectResponse, err := srcrpc.ConnectPeer(ctx, &lnrpc.ConnectPeerRequest{
 				Addr: &lnrpc.LightningAddress{
 					Pubkey: destInfoResp.IdentityPubkey,
@@ -196,7 +203,6 @@ func (l *Launcher) createChannels() {
 			}
 			fmt.Fprintf(status, "%q\n", connectResponse)
 		}
-		break
 	}
 }
 
@@ -213,7 +219,7 @@ func (l *Launcher) launchNodes() {
 	time.Sleep(2 * time.Second)
 
 	l.createWallets()
-	time.Sleep(5 * time.Second)
+	time.Sleep(1 * time.Second)
 	l.generate()
 	time.Sleep(2 * time.Second)
 	l.createChannels()
