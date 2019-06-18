@@ -1,6 +1,11 @@
 package main
 
 import (
+	"bufio"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
 	"os/exec"
 	"sort"
 	"strings"
@@ -74,6 +79,29 @@ func sortAliasKeys(a map[string]*alias) []string {
 
 	sort.Strings(keys)
 	return keys
+}
+
+func randomNames() *apiresults {
+	url := fmt.Sprintf("https://randomuser.me/api/?results=%s&inc=name", nNodes)
+	resp, err := http.Get(url)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+	reader := bufio.NewReader(resp.Body)
+	decoder := json.NewDecoder(reader)
+	names := &apiresults{}
+	decoder.Decode(&names)
+	return names
+}
+
+func ensureDir(dir string) {
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		err = os.MkdirAll(dir, 0755)
+		if err != nil {
+			panic(err)
+		}
+	}
 }
 
 const BASE_PORT = 10000
