@@ -24,8 +24,11 @@ type apiresults struct {
 }
 
 type cfgview struct {
-	N    int
-	Name string
+	N      int
+	Rpc    int
+	Rest   int
+	Listen int
+	Name   string
 }
 
 const configtemplate = `[Application Options]
@@ -33,9 +36,9 @@ datadir=profiles/user{{.N}}/data
 logdir=profiles/user{{.N}}/log
 debuglevel=info
 debughtlc=true
-rpclisten=localhost:1000{{.N}}
-listen=localhost:1100{{.N}}
-restlisten=localhost:800{{.N}}
+rpclisten=localhost:{{.Rpc}}
+listen=localhost:{{.Listen}}
+restlisten=localhost:{{.Rest}}
 alias={{.Name}}
 
 [Bitcoin]

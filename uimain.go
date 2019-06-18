@@ -38,7 +38,7 @@ func NewMainUI() *MainUI {
 		aliases:    make(map[string]*alias),
 		nodes:      make(map[string]*node),
 	}
-	ui.cliresult.SetBorder(false).SetTitle("CLI Result (Ctrl+y)")
+	ui.cliresult.SetBorder(false)
 
 	ui.cliresult.SetInputCapture(func(key *tcell.EventKey) *tcell.EventKey {
 		if key.Key() == tcell.KeyCtrlL {
@@ -51,7 +51,7 @@ func NewMainUI() *MainUI {
 	ui.cli.
 		SetPlaceholder("Enter cli command - use Ctrl+v to paste (no shift)").
 		SetFieldBackgroundColor(tcell.ColorBlack).
-		SetFieldWidth(0).SetBorder(true).SetTitle("CLI (Ctrl+i) for CLI (Ctrl+y) for results")
+		SetFieldWidth(0).SetBorder(true).SetTitle("CLI (Ctrl+i) for CLI (Ctrl+o) for results")
 
 	ui.cli.SetInputCapture(ui.cliInputCapture)
 
@@ -183,6 +183,10 @@ func (u *MainUI) defineNodes(r []apiname) {
 		name := n.Name.Last
 		view := &cfgview{}
 		view.N = i + 1
+		view.Rpc = view.N + BASE_PORT
+		view.Listen = view.N + BASE_PORT + 1000
+		view.Rest = view.N + BASE_PORT + 2000
+
 		view.Name = n.Name.Last
 		err := tmpl.Execute(&b, view)
 		if err != nil {

@@ -63,7 +63,7 @@ func setUI() {
 		} else if key.Key() == tcell.KeyCtrlI {
 			ui.cli.SetText("")
 			app.SetFocus(ui.cli)
-		} else if key.Key() == tcell.KeyCtrlY {
+		} else if key.Key() == tcell.KeyCtrlO {
 			app.SetFocus(ui.cliresult)
 		}
 		return key
