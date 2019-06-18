@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/gdamore/tcell"
 	"github.com/rivo/tview"
+	"strconv"
 )
 
 var flex *tview.Flex
@@ -68,7 +69,8 @@ func setUI() {
 		return key
 	})
 
-	launcher := NewLauncher(ui.workingdir, ui.aliases)
+	n, _ := strconv.Atoi(nChannels)
+	launcher := NewLauncher(ui.workingdir, ui.aliases, n)
 	launcher.launchNodes()
 	swapForm()
 }

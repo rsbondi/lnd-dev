@@ -34,7 +34,7 @@ logdir=profiles/user{{.N}}/log
 debuglevel=info
 debughtlc=true
 rpclisten=localhost:1000{{.N}}
-listen=localhost:1001{{.N}}
+listen=localhost:1100{{.N}}
 restlisten=localhost:800{{.N}}
 alias={{.Name}}
 
