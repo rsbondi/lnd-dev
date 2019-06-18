@@ -83,6 +83,7 @@ func (u *MainUI) cliInputCapture(key *tcell.EventKey) *tcell.EventKey {
 		}
 
 		fmt.Fprintf(u.cliresult, "%s\n", tview.Escape(out.String()))
+		u.cliresult.ScrollToEnd()
 		u.nodes[u.currentnode].Buff += cmdfmt
 		u.nodes[u.currentnode].Buff += out.String()
 		u.nodes[u.currentnode].Cmds = append(u.nodes[u.currentnode].Cmds, u.cli.GetText())
@@ -142,7 +143,7 @@ func (u *MainUI) populateList(r []apiname) {
 
 	confcmd := fmt.Sprintf("bitcoin-cli -conf=%s/bitcoin.conf", u.workingdir)
 	name := "Regtest"
-	u.aliases[name] = &alias{&name, &confcmd}
+	u.aliases[name] = &alias{&name, &confcmd, 0, ""}
 	s := -1
 	anode := &node{"", []string{}, &s}
 	u.nodes[name] = anode
@@ -187,8 +188,9 @@ func (u *MainUI) defineNodes(r []apiname) {
 		if err != nil {
 			panic(err)
 		}
+		mac := fmt.Sprintf("%s/profiles/user%d/data/chain/bitcoin/regtest/admin.macaroon", ui.workingdir, i+1)
 		cmd := fmt.Sprintf("lncli --rpcserver=localhost:%d --macaroonpath=profiles/user%d/data/chain/bitcoin/regtest/admin.macaroon", BASE_PORT+i+1, i+1)
-		u.aliases[n.Name.Last] = &alias{&name, &cmd}
+		u.aliases[n.Name.Last] = &alias{&name, &cmd, BASE_PORT + i + 1, mac}
 
 		udir := fmt.Sprintf("profiles/user%d", i+1)
 		ensureDir(udir)

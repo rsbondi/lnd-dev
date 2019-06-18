@@ -13,7 +13,6 @@ var ui *MainUI
 var nNodes, nChannels string
 
 func main() {
-	ui = NewMainUI()
 	status = tview.NewTextView()
 
 	app = tview.NewApplication()
@@ -52,6 +51,7 @@ func swapForm() {
 
 func setUI() {
 	names := randomNames()
+	ui = NewMainUI()
 
 	ui.populateList(names.Results)
 

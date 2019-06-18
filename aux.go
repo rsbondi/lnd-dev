@@ -57,8 +57,10 @@ type node struct {
 }
 
 type alias struct {
-	Name *string
-	Path *string
+	Name         *string
+	Path         *string
+	Port         int
+	MacaroonPath string
 }
 
 func (a *alias) Command(c ...string) *exec.Cmd {
