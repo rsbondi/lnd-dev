@@ -2,39 +2,28 @@ package main
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/atotto/clipboard"
 	"github.com/gdamore/tcell"
 	"github.com/rivo/tview"
 	"net/http"
 	"os"
 	"os/exec"
-	"strings"
-	"text/template"
 	"time"
 )
 
 var flex *tview.Flex
 var form *tview.Form
 var app *tview.Application
-var cli *tview.InputField
-var list *tview.DropDown
-var cliresult *tview.TextView
 var status *tview.TextView
-var currentnode, nNodes, nChannels, workingdir string
-var aliases map[string]*alias
-var nodes map[string]*node
+var ui *MainUI
+var nNodes, nChannels string
 
 func main() {
-	cliresult = tview.NewTextView().SetDynamicColors(true)
+	ui = NewMainUI()
 	status = tview.NewTextView()
-	cli = tview.NewInputField()
-	list = tview.NewDropDown()
 
 	app = tview.NewApplication()
-	currentnode = ""
 
 	form = tview.NewForm().
 		AddInputField("Number of Nodes", "", 5, tview.InputFieldInteger, func(t string) {
@@ -74,10 +63,10 @@ func randomNames() *apiresults {
 
 func swapForm() {
 	col := tview.NewFlex().SetDirection(tview.FlexColumn)
-	col.AddItem(list, 40, 1, false)
-	col.AddItem(cli, 0, 1, true)
+	col.AddItem(ui.list, 40, 1, false)
+	col.AddItem(ui.cli, 0, 1, true)
 	flex.AddItem(col, 3, 1, true)
-	flex.AddItem(cliresult, 0, 5, false)
+	flex.AddItem(ui.cliresult, 0, 5, false)
 	flex.RemoveItem(form)
 	flex.RemoveItem(status)
 }
@@ -91,191 +80,20 @@ func ensureDir(dir string) {
 	}
 }
 
-func defineNodes(r []apiname) map[string]*alias {
-	dir, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
-	workingdir = dir
-	dir = fmt.Sprintf("%s/profiles", dir)
-	ensureDir(dir)
-
-	tmpl, _ := template.New("view").Parse(configtemplate)
-	aliases = make(map[string]*alias)
-
-	for i, n := range r {
-		var b bytes.Buffer
-		name := n.Name.Last
-		view := &cfgview{}
-		view.N = i + 1
-		view.Name = n.Name.Last
-		err = tmpl.Execute(&b, view)
-		cmd := fmt.Sprintf("lncli --rpcserver=localhost:%d --macaroonpath=profiles/user%d/data/chain/bitcoin/regtest/admin.macaroon", BASE_PORT+i+1, i+1)
-		aliases[n.Name.Last] = &alias{&name, &cmd}
-
-		udir := fmt.Sprintf("profiles/user%d", i+1)
-		ensureDir(udir)
-
-		f, err := os.Create(fmt.Sprintf("profiles/user%d/lnd.conf", i+1))
-		if err != nil {
-			panic(err)
-		}
-		defer f.Close()
-		_, err = f.Write(b.Bytes())
-	}
-	return aliases
-
-}
-
-func cliInputCapture(key *tcell.EventKey) *tcell.EventKey {
-	if key.Key() == tcell.KeyEnter {
-		text := cli.GetText()
-		cmdfmt := fmt.Sprintf("[#ff0000]# %s[white]\n", text)
-		fmt.Fprintf(cliresult, cmdfmt)
-		if text == "" {
-			fmt.Fprintf(cliresult, "Please provide a command to execute\n")
-			return key
-		}
-		args, err := parseCommandLine(text)
-		if err != nil {
-			fmt.Fprintf(cliresult, "%s\n", err.Error())
-		}
-
-		cmd := aliases[currentnode].Command(args...)
-		cmd.Stdin = strings.NewReader("some input")
-		var out bytes.Buffer
-		cmd.Stdout = &out
-		err = cmd.Run()
-		if err != nil {
-			fmt.Fprintf(cliresult, "%s\n", err.Error())
-		}
-
-		fmt.Fprintf(cliresult, "%s\n", tview.Escape(out.String()))
-		nodes[currentnode].Buff += cmdfmt
-		nodes[currentnode].Buff += out.String()
-		nodes[currentnode].Cmds = append(nodes[currentnode].Cmds, cli.GetText())
-		*nodes[currentnode].CmdIndex = len(nodes[currentnode].Cmds)
-
-		cli.SetText("")
-	} else if key.Key() == tcell.KeyUp {
-		index := nodes[currentnode].CmdIndex
-		if *index > 0 {
-			*index = *index - 1
-		}
-		if *index >= 0 && *index < len(nodes[currentnode].Cmds) {
-			cli.SetText(nodes[currentnode].Cmds[*index])
-		}
-	} else if key.Key() == tcell.KeyDown {
-		index := nodes[currentnode].CmdIndex
-		if *index == len(nodes[currentnode].Cmds)-1 {
-			cli.SetText("")
-			*index = *index + 1
-			return key
-		}
-		if *index < len(nodes[currentnode].Cmds)-1 {
-			*index = *index + 1
-		}
-		if *index >= 0 && *index < len(nodes[currentnode].Cmds) {
-			cli.SetText(nodes[currentnode].Cmds[*index])
-		}
-	} else if key.Key() == tcell.KeyCtrlV {
-		clip, err := clipboard.ReadAll()
-		if err != nil {
-			fmt.Fprintf(cliresult, "%s\n", err.Error())
-		} else {
-			full := strings.Replace(clip, "\n", "", -1)
-			cli.SetText(fmt.Sprintf("%s%s", cli.GetText(), full)) // TODO: this only paste to end, fix for insert
-		}
-	}
-	return key
-}
-
-func populateList() {
-	aliasKeys := sortAliasKeys(aliases)
-	for _, a := range aliasKeys {
-		s := -1
-		anode := &node{"", []string{}, &s}
-		nodes[*aliases[a].Name] = anode
-
-		name := *aliases[a].Name
-		list.AddOption(*aliases[a].Name, func() {
-			cli.SetText("")
-			currentnode = name
-			cliresult.SetText(nodes[name].Buff)
-			app.SetFocus(cli)
-		})
-	}
-
-	confcmd := fmt.Sprintf("bitcoin-cli -conf=%s/bitcoin.conf", workingdir)
-	name := "Regtest"
-	aliases[name] = &alias{&name, &confcmd}
-	s := -1
-	anode := &node{"", []string{}, &s}
-	nodes[name] = anode
-
-	list.AddOption(name, func() {
-		cli.SetText("")
-		currentnode = name
-		cliresult.SetText(nodes[name].Buff)
-		app.SetFocus(cli)
-	})
-	list.AddOption("Quit", func() {
-		// kill bitcoind
-		cmd := exec.Command("bitcoin-cli", fmt.Sprintf("-conf=%s/bitcoin.conf", workingdir), "stop")
-		cmd.Run()
-
-		for u := 1; u < len(aliases); u++ {
-			host := fmt.Sprintf("--rpcserver=localhost:%d", BASE_PORT+u)
-			macaroon := fmt.Sprintf("--macaroonpath=profiles/user%d/data/chain/bitcoin/regtest/admin.macaroon", u)
-			cmd := exec.Command("lncli", host, macaroon, "stop")
-			cmd.Run()
-		}
-
-		os.RemoveAll(fmt.Sprintf("%s/profiles", workingdir))
-
-		app.Stop()
-	})
-
-	list.SetBorder(true).SetTitle("Nodes (Ctrl+n)")
-	list.SetCurrentOption(0)
-
-}
-
 func setUI() {
 	names := randomNames()
 
-	nodes = make(map[string]*node)
-
-	cliresult.SetBorder(false).SetTitle("CLI Result (Ctrl+y)")
-
-	cliresult.SetInputCapture(func(key *tcell.EventKey) *tcell.EventKey {
-		if key.Key() == tcell.KeyCtrlL {
-			cliresult.SetText("")
-			nodes[currentnode].Buff = ""
-		}
-		return key
-	})
-
-	aliases = defineNodes(names.Results)
-
-	populateList()
-
-	cli.
-		SetPlaceholder("Enter cli command - use Ctrl+v to paste (no shift)").
-		SetFieldBackgroundColor(tcell.ColorBlack).
-		SetFieldWidth(0).SetBorder(true).SetTitle("CLI (Ctrl+i) for CLI (Ctrl+y) for results")
-
-	cli.SetInputCapture(cliInputCapture)
+	ui.populateList(names.Results)
 
 	app.SetInputCapture(func(key *tcell.EventKey) *tcell.EventKey {
 		if key.Key() == tcell.KeyCtrlN {
-			app.SetFocus(list)
-			list.InputHandler()(tcell.NewEventKey(tcell.KeyEnter, '0', tcell.ModNone), func(tview.Primitive) { app.SetFocus(list) })
+			app.SetFocus(ui.list)
+			ui.list.InputHandler()(tcell.NewEventKey(tcell.KeyEnter, '0', tcell.ModNone), func(tview.Primitive) { app.SetFocus(ui.list) })
 		} else if key.Key() == tcell.KeyCtrlI {
-			cli.SetText("")
-			app.SetFocus(cli)
+			ui.cli.SetText("")
+			app.SetFocus(ui.cli)
 		} else if key.Key() == tcell.KeyCtrlY {
-			app.SetFocus(cliresult)
+			app.SetFocus(ui.cliresult)
 		}
 		return key
 	})
@@ -286,7 +104,7 @@ func setUI() {
 func launchNodes() {
 	fmt.Fprintln(status, "launching bitcoin node")
 
-	cmd := exec.Command("bitcoind", fmt.Sprintf("-conf=%s/bitcoin.conf", workingdir))
+	cmd := exec.Command("bitcoind", fmt.Sprintf("-conf=%s/bitcoin.conf", ui.workingdir))
 
 	err := cmd.Start()
 
@@ -296,12 +114,12 @@ func launchNodes() {
 
 	time.Sleep(2 * time.Second)
 	u := 1
-	for _, v := range aliases {
+	for _, v := range ui.aliases {
 		if *v.Name == "Regtest" {
 			continue
 		}
-		fmt.Fprintf(status, "launching node for %s\n with lnd --configfile=%s/profiles/user%d/lnd.conf command=%s\n", *v.Name, workingdir, u, *v.Path)
-		cmd := exec.Command("lnd", fmt.Sprintf("--configfile=%s/profiles/user%d/lnd.conf", workingdir, u))
+		fmt.Fprintf(status, "launching node for %s\n with lnd --configfile=%s/profiles/user%d/lnd.conf command=%s\n", *v.Name, ui.workingdir, u, *v.Path)
+		cmd := exec.Command("lnd", fmt.Sprintf("--configfile=%s/profiles/user%d/lnd.conf", ui.workingdir, u))
 
 		err := cmd.Start()
 
