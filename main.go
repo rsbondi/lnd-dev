@@ -9,12 +9,10 @@ import (
 var flex *tview.Flex
 var form *tview.Form
 var app *tview.Application
-var status *tview.TextView
 var ui *MainUI
 var nNodes, nChannels string
 
 func main() {
-	status = tview.NewTextView()
 
 	app = tview.NewApplication()
 
@@ -22,7 +20,7 @@ func main() {
 		AddInputField("Number of Nodes", "", 5, tview.InputFieldInteger, func(t string) {
 			nNodes = t
 		}).
-		AddInputField("Incoming Connections per Node", "", 5, tview.InputFieldInteger, func(t string) {
+		AddInputField("Max Connections per Node", "", 5, tview.InputFieldInteger, func(t string) {
 			nChannels = t
 		}).
 		AddButton("Ok", setUI).
@@ -33,7 +31,6 @@ func main() {
 
 	flex = tview.NewFlex().SetDirection(tview.FlexRow)
 	flex.AddItem(form, 0, 5, true)
-	flex.AddItem(status, 0, 5, false)
 
 	if err := app.SetRoot(flex, true).Run(); err != nil {
 		panic(err)
@@ -47,7 +44,6 @@ func swapForm() {
 	flex.AddItem(col, 3, 1, true)
 	flex.AddItem(ui.cliresult, 0, 5, false)
 	flex.RemoveItem(form)
-	flex.RemoveItem(status)
 }
 
 func setUI() {

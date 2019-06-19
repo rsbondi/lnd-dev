@@ -62,7 +62,7 @@ func NewMainUI() *MainUI {
 func (u *MainUI) cliInputCapture(key *tcell.EventKey) *tcell.EventKey {
 	if key.Key() == tcell.KeyEnter {
 		text := u.cli.GetText()
-		cmdfmt := fmt.Sprintf("[#ff0000]# %s[white]\n", text)
+		cmdfmt := fmt.Sprintf("[#00aaaa]# %s[white]\n", text)
 		fmt.Fprintf(u.cliresult, cmdfmt)
 		if text == "" {
 			fmt.Fprintf(u.cliresult, "Please provide a command to execute\n")

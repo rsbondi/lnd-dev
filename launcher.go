@@ -37,28 +37,26 @@ func NewLauncher(wd string, aliases map[string]*alias, chans int) *Launcher {
 func grpcClient(a *alias) lnrpc.LightningClient {
 	usr, err := user.Current()
 	if err != nil {
-		fmt.Fprintf(status, "Cannot get current user: %s\n", err)
+		logerr("current user fail", err.Error())
 		return nil
 	}
 	tlsCertPath := path.Join(usr.HomeDir, ".lnd/tls.cert")
 	macaroonPath := a.MacaroonPath
-	// /home/bondibit/projects/lnd-dev/profiles/user1/data/chain/bitcoin/regtest/admin.macaroon
 
 	tlsCreds, err := credentials.NewClientTLSFromFile(tlsCertPath, "")
 	if err != nil {
-		fmt.Fprintf(status, "Cannot get node tls credentials %s\n", err)
+		logerr("cert failure", err.Error())
 		return nil
 	}
 
 	macaroonBytes, err := ioutil.ReadFile(macaroonPath)
 	if err != nil {
-		fmt.Fprintf(status, "Cannot read macaroon file %s\n", err)
+		logerr("macaroon file read failure", err.Error())
 		return nil
 	}
 
 	mac := &macaroon.Macaroon{}
 	if err = mac.UnmarshalBinary(macaroonBytes); err != nil {
-		fmt.Fprintf(status, "Cannot unmarshal macaroon %s\n", err)
 		return nil
 	}
 
@@ -71,7 +69,7 @@ func grpcClient(a *alias) lnrpc.LightningClient {
 	host := fmt.Sprintf("localhost:%d", a.Port)
 	conn, err := grpc.Dial(host, opts...)
 	if err != nil {
-		fmt.Fprintf(status, "cannot dial to lnd %s\n", err)
+		logerr("problem with grpc connection", err.Error())
 		return nil
 	}
 	client := lnrpc.NewLightningClient(conn)
@@ -118,14 +116,13 @@ func (l *Launcher) createWallets() {
 
 		ctx := context.Background()
 		seed, err := ln.GenSeed(ctx, &lnrpc.GenSeedRequest{})
-		res, err := ln.InitWallet(ctx, &lnrpc.InitWalletRequest{
+		_, err = ln.InitWallet(ctx, &lnrpc.InitWalletRequest{
 			WalletPassword:     []byte("password"),
 			CipherSeedMnemonic: seed.CipherSeedMnemonic})
 		if err != nil {
-			fmt.Println("Cannot get info from node:", err)
+			logerr("Cannot get info from node", err.Error())
 			return
 		}
-		fmt.Fprintf(status, "%s\n", res)
 		time.Sleep(3 * time.Second)
 	}
 }
@@ -136,13 +133,12 @@ func (l *Launcher) launchLnd() {
 		if *v.Name == "Regtest" {
 			continue
 		}
-		fmt.Fprintf(status, "launching node for %s\n with lnd --configfile=%s/profiles/user%d/lnd.conf command=%s\n", *v.Name, l.workingdir, u, *v.Path)
 		cmd := exec.Command("lnd", fmt.Sprintf("--configfile=%s/profiles/user%d/lnd.conf", l.workingdir, u))
 
 		err := cmd.Start()
 
 		if err != nil {
-			fmt.Fprintf(status, "%s\n", err.Error())
+			logerr("lnd launch failure", err.Error())
 		}
 
 		u++
@@ -158,19 +154,24 @@ func (l *Launcher) openChannels() {
 		ctx := context.Background()
 		for _, c := range connections[*a.Name] {
 
+			fmt.Fprintf(ui.cliresult, "opening channel: %s -> %s\n", *a.Name, c)
+			app.Draw()
+
 			peer := peerinfo[c]
 			_, err := rpc.OpenChannelSync(ctx, &lnrpc.OpenChannelRequest{
 				NodePubkeyString:   peer.GetIdentityPubkey(),
-				LocalFundingAmount: int64(rand.Intn(2000000)),
+				LocalFundingAmount: int64(rand.Intn(50000) + 100000),
 			})
 			if err != nil {
-				fmt.Fprintf(ui.cliresult, "error peer info %q %s\n", peerinfo, c)
-				fmt.Fprintf(ui.cliresult, "Cannot fund with peer %s\n", err)
+				fmt.Fprintf(ui.cliresult, "Cannot fund with peer %s\n\n", err)
+				app.Draw()
 				continue
 			}
+			l.generate(10)
+			time.Sleep(2 * time.Second)
+
 		}
 	}
-	l.generate()
 }
 
 func (l *Launcher) fundNodes() {
@@ -185,17 +186,17 @@ func (l *Launcher) fundNodes() {
 			Type: lnrpc.AddressType_NESTED_PUBKEY_HASH,
 		})
 		if err != nil {
-			fmt.Fprintf(status, "%s\n", err.Error())
+			logerr("fund node address failure", err.Error())
 			continue
 		}
 		cmd := exec.Command("bitcoin-cli", fmt.Sprintf("-conf=%s/bitcoin.conf", l.workingdir), "sendtoaddress", addr.Address, "1")
 		err = cmd.Run()
 
 		if err != nil {
-			fmt.Fprintf(status, "%s\n", err.Error())
+			logerr("fund node send failure", err.Error())
 		}
 	}
-	l.generate()
+	l.generate(10)
 	time.Sleep(2 * time.Second)
 }
 
@@ -218,88 +219,109 @@ func (l *Launcher) connectPeers() {
 			continue
 		}
 
-		n := rand.Intn(l.nChannels) + 1 // at least one
+		n := l.nChannels // rand.Intn(l.nChannels) + 1 // at least one
 
-		fmt.Fprintf(status, "random channels: %d of %d\n", n, l.nChannels)
 		for c := 0; c < n; c++ {
 			src := v
 			var dest *alias
 			i := 0
+			index := rand.Intn(len(aliaskeys))
 			for {
-				rand.Seed(time.Now().UnixNano())
-				dest = l.aliases[aliaskeys[rand.Intn(len(aliaskeys))]]
-				if dest.Name != src.Name && sort.SearchStrings(connections[*src.Name], *dest.Name) == len(connections[*src.Name]) {
+				dest = l.aliases[aliaskeys[(index+i)%len(aliaskeys)]]
+				if dest.Name != src.Name && sort.SearchStrings(connections[*src.Name], *dest.Name) == len(connections[*src.Name]) && sort.SearchStrings(connections[*dest.Name], *src.Name) == len(connections[*dest.Name]) {
 					break
 				}
 				i++
-				if i > n+10 { // too many tries
+				if i > n+len(aliaskeys) { // too many tries
 					break
 				}
 			}
-			if i > n+10 {
+			if i > n+len(aliaskeys) {
 				continue
 			}
+			fmt.Fprintf(ui.cliresult, "attempting connection: %s -> %s\n", *src.Name, *dest.Name)
 
 			destrpc := grpcClient(dest)
 
 			ctx := context.Background()
 			destInfoResp, err := destrpc.GetInfo(ctx, &lnrpc.GetInfoRequest{})
 			if err != nil {
-				fmt.Fprintf(status, "Cannot get info from node: %s", err)
+				logerr("destination get info failed", err.Error())
 				return
 			}
 
 			srcrpc := grpcClient(src)
-			connectResponse, err := srcrpc.ConnectPeer(ctx, &lnrpc.ConnectPeerRequest{
+			_, err = srcrpc.ConnectPeer(ctx, &lnrpc.ConnectPeerRequest{
 				Addr: &lnrpc.LightningAddress{
 					Pubkey: destInfoResp.IdentityPubkey,
 					Host:   fmt.Sprintf("127.0.0.1:%d", dest.Port+1000)},
 				Perm: false})
 			if err != nil {
-				fmt.Fprintf(status, "Cannot connect to peer %s", err)
+				logerr("source connect failure", err.Error())
 				return
 			}
 			connections[*src.Name] = append(connections[*src.Name], *dest.Name)
 			peerinfo[*dest.Name] = destInfoResp
-			fmt.Fprintf(status, "%q\n", connectResponse)
+			fmt.Fprintf(ui.cliresult, "connected!: %s -> %s\n", *src.Name, *dest.Name)
 		}
 	}
 
 }
 
+func log(s string) {
+	fmt.Fprintln(ui.cliresult, s)
+	app.Draw()
+}
+
+func logerr(s string, e string) {
+	msg := fmt.Sprintf("[red]%s: [white]%s", s, e)
+	fmt.Fprintln(ui.cliresult, msg)
+	app.Draw()
+}
+
 func (l *Launcher) launchNodes() {
-	fmt.Fprintln(status, "launching bitcoin node")
+	log("launching bitcoin node")
 
 	cmd := exec.Command("bitcoind", fmt.Sprintf("-conf=%s/bitcoin.conf", l.workingdir))
 
 	err := cmd.Start()
 
 	if err != nil {
-		fmt.Fprintf(status, "%s\n", err.Error())
+		logerr("bitcoin start fail", err.Error())
 	}
 	time.Sleep(2 * time.Second)
 
+	log("launching lnd")
 	l.launchLnd()
-	l.generate()
-	l.createWallets()
-	l.connectPeers()
-	time.Sleep(3200 * time.Millisecond)
-	l.fundNodes()
-	l.openChannels()
 
-	time.Sleep(1 * time.Second)
+	l.generate(10) // syncs with chain
+	log("creating wallets")
+	l.createWallets()
+
+	log("connecting peers")
+	l.connectPeers()
+
+	time.Sleep(3200 * time.Millisecond)
+
+	log("funding nodes")
+	l.fundNodes()
+
+	log("opening channels")
+	l.openChannels()
+	log("[green]Launch complete[white]")
+
 }
 
-func (l *Launcher) generate() {
+func (l *Launcher) generate(n int) {
 	out, err := exec.Command("bitcoin-cli", fmt.Sprintf("-conf=%s/bitcoin.conf", l.workingdir), "getnewaddress").Output()
 	if err != nil {
-		fmt.Fprintf(status, "%s\n", err.Error())
+		logerr("get new address fail", err.Error())
 	}
 
-	cmd := exec.Command("bitcoin-cli", fmt.Sprintf("-conf=%s/bitcoin.conf", l.workingdir), "generatetoaddress", "10", string(out))
+	cmd := exec.Command("bitcoin-cli", fmt.Sprintf("-conf=%s/bitcoin.conf", l.workingdir), "generatetoaddress", fmt.Sprintf("%d", n), string(out))
 	err = cmd.Run()
 
 	if err != nil {
-		fmt.Fprintf(status, "%s\n", err.Error())
+		logerr("generat block failure", err.Error())
 	}
 }
