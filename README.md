@@ -2,7 +2,18 @@
 
 Generate a random development environment for lnd with established funding of channels
 
-Currently generates nodes, syncs to chain and connects random peers
+## Motivation
+Inspired by [lnet](https://github.com/cdecker/lnet), this is a development tool that creates random nodes, connects them, and funds channels.
+You can begin development once launched without a complex procedure to get you started
 
-TODO:
-* random funding of channels
+## Features
+* terminal based UI
+* input amount of nodes and connections per node
+* easily switch between nodes in UI
+* UI includes bitcoin node
+* all nodes properly shutdown on exit
+
+## Requirements
+* bitcoind (runs regtest, must have coins)
+* lnd
+

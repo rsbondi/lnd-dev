@@ -219,7 +219,7 @@ func (l *Launcher) connectPeers() {
 			continue
 		}
 
-		n := l.nChannels // rand.Intn(l.nChannels) + 1 // at least one
+		n := l.nChannels
 
 		for c := 0; c < n; c++ {
 			src := v
@@ -262,7 +262,9 @@ func (l *Launcher) connectPeers() {
 			}
 			connections[*src.Name] = append(connections[*src.Name], *dest.Name)
 			peerinfo[*dest.Name] = destInfoResp
-			fmt.Fprintf(ui.cliresult, "connected!: %s -> %s\n", *src.Name, *dest.Name)
+			log(fmt.Sprintf("[green]connected:[white] %s -> %s", *src.Name, *dest.Name))
+			l.generate(1) // force chain sync?
+			time.Sleep(1200 * time.Millisecond)
 		}
 	}
 
@@ -291,24 +293,24 @@ func (l *Launcher) launchNodes() {
 	}
 	time.Sleep(2 * time.Second)
 
-	log("launching lnd")
+	log("launching lnd nodes")
 	l.launchLnd()
 
 	l.generate(10) // syncs with chain
-	log("creating wallets")
+	log("creating wallets (takes a while)")
 	l.createWallets()
 
 	log("connecting peers")
 	l.connectPeers()
 
-	time.Sleep(3200 * time.Millisecond)
+	time.Sleep(200 * time.Millisecond)
 
 	log("funding nodes")
 	l.fundNodes()
 
 	log("opening channels")
 	l.openChannels()
-	log("[green]Launch complete[white]")
+	log("\n[green]Launch complete[white]\n")
 
 }
 
