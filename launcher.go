@@ -125,6 +125,7 @@ func (l *Launcher) createWallets() {
 		fmt.Fprintf(status, "%s\n", res)
 		time.Sleep(3 * time.Second)
 	}
+	l.fundNodes()
 }
 
 func (l *Launcher) launchLnd() {
@@ -148,7 +149,32 @@ func (l *Launcher) launchLnd() {
 	l.createWallets()
 }
 
-func (l *Launcher) createChannels() {
+func (l *Launcher) fundNodes() {
+	for _, a := range l.aliases {
+		if *a.Name == "Regtest" {
+			continue
+		}
+		rpc := grpcClient(a)
+		ctx := context.Background()
+
+		addr, err := rpc.NewAddress(ctx, &lnrpc.NewAddressRequest{
+			Type: lnrpc.AddressType_NESTED_PUBKEY_HASH,
+		})
+		if err != nil {
+			fmt.Fprintf(status, "%s\n", err.Error())
+			continue
+		}
+		cmd := exec.Command("bitcoin-cli", fmt.Sprintf("-conf=%s/bitcoin.conf", l.workingdir), "sendtoaddress", addr.Address, "1")
+		err = cmd.Run()
+
+		if err != nil {
+			fmt.Fprintf(status, "%s\n", err.Error())
+		}
+	}
+	l.generate()
+}
+
+func (l *Launcher) connectPeers() {
 	aliaskeys := make([]string, 0, len(l.aliases))
 
 	connections := make(map[string][]string)
@@ -230,7 +256,7 @@ func (l *Launcher) launchNodes() {
 	time.Sleep(1 * time.Second)
 	l.generate()
 	time.Sleep(2 * time.Second)
-	l.createChannels()
+	l.connectPeers()
 }
 
 func (l *Launcher) generate() {
