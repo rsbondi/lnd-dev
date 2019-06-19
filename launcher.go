@@ -106,6 +106,28 @@ func unlocker(a *alias) lnrpc.WalletUnlockerClient {
 }
 
 func (l *Launcher) createWallets() {
+	for _, v := range l.aliases {
+		if *v.Name == "Regtest" {
+			continue
+		}
+
+		ln := unlocker(v)
+
+		ctx := context.Background()
+		seed, err := ln.GenSeed(ctx, &lnrpc.GenSeedRequest{})
+		res, err := ln.InitWallet(ctx, &lnrpc.InitWalletRequest{
+			WalletPassword:     []byte("password"),
+			CipherSeedMnemonic: seed.CipherSeedMnemonic})
+		if err != nil {
+			fmt.Println("Cannot get info from node:", err)
+			return
+		}
+		fmt.Fprintf(status, "%s\n", res)
+		time.Sleep(3 * time.Second)
+	}
+}
+
+func (l *Launcher) launchLnd() {
 	u := 1
 	for _, v := range l.aliases {
 		if *v.Name == "Regtest" {
@@ -120,24 +142,10 @@ func (l *Launcher) createWallets() {
 			fmt.Fprintf(status, "%s\n", err.Error())
 		}
 
-		ln := unlocker(v)
-
-		time.Sleep(200 * time.Millisecond)
-
-		ctx := context.Background()
-		seed, err := ln.GenSeed(ctx, &lnrpc.GenSeedRequest{})
-		res, err := ln.InitWallet(ctx, &lnrpc.InitWalletRequest{
-			WalletPassword:     []byte("password"),
-			CipherSeedMnemonic: seed.CipherSeedMnemonic})
-		if err != nil {
-			fmt.Println("Cannot get info from node:", err)
-			return
-		}
-		fmt.Fprintf(status, "%s\n", res)
-		time.Sleep(2 * time.Second)
-
 		u++
 	}
+	time.Sleep(3200 * time.Millisecond)
+	l.createWallets()
 }
 
 func (l *Launcher) createChannels() {
@@ -218,7 +226,7 @@ func (l *Launcher) launchNodes() {
 	}
 	time.Sleep(2 * time.Second)
 
-	l.createWallets()
+	l.launchLnd()
 	time.Sleep(1 * time.Second)
 	l.generate()
 	time.Sleep(2 * time.Second)
