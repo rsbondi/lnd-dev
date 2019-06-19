@@ -17,6 +17,9 @@ import (
 	"time"
 )
 
+var connections map[string][]string
+var peerinfo map[string]*lnrpc.GetInfoResponse
+
 type Launcher struct {
 	workingdir string
 	aliases    map[string]*alias
@@ -125,7 +128,6 @@ func (l *Launcher) createWallets() {
 		fmt.Fprintf(status, "%s\n", res)
 		time.Sleep(3 * time.Second)
 	}
-	l.fundNodes()
 }
 
 func (l *Launcher) launchLnd() {
@@ -145,8 +147,30 @@ func (l *Launcher) launchLnd() {
 
 		u++
 	}
-	time.Sleep(3200 * time.Millisecond)
-	l.createWallets()
+}
+
+func (l *Launcher) openChannels() {
+	for _, a := range l.aliases {
+		if *a.Name == "Regtest" {
+			continue
+		}
+		rpc := grpcClient(a)
+		ctx := context.Background()
+		for _, c := range connections[*a.Name] {
+
+			peer := peerinfo[c]
+			_, err := rpc.OpenChannelSync(ctx, &lnrpc.OpenChannelRequest{
+				NodePubkeyString:   peer.GetIdentityPubkey(),
+				LocalFundingAmount: int64(rand.Intn(2000000)),
+			})
+			if err != nil {
+				fmt.Fprintf(ui.cliresult, "error peer info %q %s\n", peerinfo, c)
+				fmt.Fprintf(ui.cliresult, "Cannot fund with peer %s\n", err)
+				continue
+			}
+		}
+	}
+	l.generate()
 }
 
 func (l *Launcher) fundNodes() {
@@ -172,12 +196,14 @@ func (l *Launcher) fundNodes() {
 		}
 	}
 	l.generate()
+	time.Sleep(2 * time.Second)
 }
 
 func (l *Launcher) connectPeers() {
 	aliaskeys := make([]string, 0, len(l.aliases))
 
-	connections := make(map[string][]string)
+	connections = make(map[string][]string)
+	peerinfo = make(map[string]*lnrpc.GetInfoResponse)
 	for key := range l.aliases {
 		if key != "Regtest" {
 			aliaskeys = append(aliaskeys, key)
@@ -185,7 +211,6 @@ func (l *Launcher) connectPeers() {
 		}
 	}
 
-	fmt.Fprintf(status, "keys for aliases: %s\n", aliaskeys)
 	rand.Seed(time.Now().UnixNano())
 
 	for _, v := range l.aliases {
@@ -193,8 +218,8 @@ func (l *Launcher) connectPeers() {
 			continue
 		}
 
-		n := rand.Intn(l.nChannels)
-		n = 1 // temp hack to test
+		n := rand.Intn(l.nChannels) + 1 // at least one
+
 		fmt.Fprintf(status, "random channels: %d of %d\n", n, l.nChannels)
 		for c := 0; c < n; c++ {
 			src := v
@@ -204,7 +229,6 @@ func (l *Launcher) connectPeers() {
 				rand.Seed(time.Now().UnixNano())
 				dest = l.aliases[aliaskeys[rand.Intn(len(aliaskeys))]]
 				if dest.Name != src.Name && sort.SearchStrings(connections[*src.Name], *dest.Name) == len(connections[*src.Name]) {
-					connections[*src.Name] = append(connections[*src.Name], *dest.Name)
 					break
 				}
 				i++
@@ -235,9 +259,12 @@ func (l *Launcher) connectPeers() {
 				fmt.Fprintf(status, "Cannot connect to peer %s", err)
 				return
 			}
+			connections[*src.Name] = append(connections[*src.Name], *dest.Name)
+			peerinfo[*dest.Name] = destInfoResp
 			fmt.Fprintf(status, "%q\n", connectResponse)
 		}
 	}
+
 }
 
 func (l *Launcher) launchNodes() {
@@ -253,10 +280,14 @@ func (l *Launcher) launchNodes() {
 	time.Sleep(2 * time.Second)
 
 	l.launchLnd()
-	time.Sleep(1 * time.Second)
 	l.generate()
-	time.Sleep(2 * time.Second)
+	l.createWallets()
 	l.connectPeers()
+	time.Sleep(3200 * time.Millisecond)
+	l.fundNodes()
+	l.openChannels()
+
+	time.Sleep(1 * time.Second)
 }
 
 func (l *Launcher) generate() {
