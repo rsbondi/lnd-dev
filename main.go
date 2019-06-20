@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/gdamore/tcell"
 	"github.com/rivo/tview"
 	"strconv"
@@ -66,7 +67,21 @@ func setUI() {
 	})
 
 	n, _ := strconv.Atoi(nChannels)
+	status := make(chan string)
+	done := make(chan int)
 	launcher := NewLauncher(ui.workingdir, ui.aliases, n)
-	go launcher.launchNodes()
+	go launcher.launchNodes(status, done)
 	swapForm()
+	go (func() {
+		for {
+			select {
+			case s := <-status:
+				fmt.Fprintln(ui.cliresult, s)
+				app.Draw()
+			case <-done:
+				return
+			}
+		}
+	})()
+
 }
