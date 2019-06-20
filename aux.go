@@ -32,6 +32,29 @@ type cfgview struct {
 	Macaroon string
 }
 
+type Logger struct {
+	out  chan string
+	done chan int
+}
+
+func NewLogger(out chan string, done chan int) *Logger {
+	return &Logger{
+		out:  out,
+		done: done,
+	}
+}
+
+func (l *Logger) log(s string) {
+	l.out <- s
+}
+
+func (l *Logger) logerr(s string, e string) {
+	msg := fmt.Sprintf("[red]%s: [white]%s", s, e)
+	l.out <- msg
+}
+
+var logger *Logger
+
 const configtemplate = `[Application Options]
 datadir=profiles/user{{.N}}/data
 logdir=profiles/user{{.N}}/log

@@ -14,7 +14,7 @@ You can begin development once launched without a complex procedure to get you s
 * all nodes properly shutdown on exit
 
 ## Requirements
-* bitcoind (runs regtest, must have coins)
+* bitcoind
 * lnd
 
 ## UI Anomalies
@@ -24,5 +24,6 @@ You can begin development once launched without a complex procedure to get you s
 ## TODO:
 * add random activity, generate and pay random invoices by random nodes
   * this will be a new numeric field on for to limit the number of payments
+* change `fmt.Sprintf`s to `path.Join` for windows
 
 [See video](https://www.youtube.com/watch?v=47NPohE9WGU&feature=youtu.be)

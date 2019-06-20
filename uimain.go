@@ -8,6 +8,7 @@ import (
 	"github.com/rivo/tview"
 	"os"
 	"os/exec"
+	"path"
 	"strings"
 	"text/template"
 )
@@ -27,8 +28,9 @@ func NewMainUI() *MainUI {
 		panic(err)
 	}
 	workingdir := dir
-	dir = fmt.Sprintf("%s/profiles", dir)
+	dir = path.Join(workingdir, "profiles")
 	ensureDir(dir)
+	ensureDir(path.Join(dir, "bitcoin"))
 
 	ui := &MainUI{
 		cliresult:  tview.NewTextView().SetDynamicColors(true),

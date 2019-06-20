@@ -69,8 +69,10 @@ func setUI() {
 	n, _ := strconv.Atoi(nChannels)
 	status := make(chan string)
 	done := make(chan int)
+	logger = NewLogger(status, done)
 	launcher := NewLauncher(ui.workingdir, ui.aliases, n)
-	go launcher.launchNodes(status, done)
+
+	go launcher.launchNodes()
 	swapForm()
 	go (func() {
 		for {
