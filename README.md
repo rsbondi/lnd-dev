@@ -20,3 +20,9 @@ You can begin development once launched without a complex procedure to get you s
 ## UI Anomalies
 * UI component copies wrapped lines with `\n` so standard `Ctrl-Shift-V` does not work with wrapped lines.  Use `Ctrl-V` instead
 * Does not do interactive prompts so for example use `-f` or `--force` options with `payinvoice` or `sendpayment`, may be others?
+
+## TODO:
+* add random activity, generate and pay random invoices by random nodes
+  * this will be a new numeric field on for to limit the number of payments
+
+[See video](https://www.youtube.com/watch?v=47NPohE9WGU&feature=youtu.be)
