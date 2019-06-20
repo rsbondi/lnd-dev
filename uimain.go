@@ -181,18 +181,18 @@ func (u *MainUI) defineNodes(r []apiname) {
 	for i, n := range r {
 		var b bytes.Buffer
 		name := n.Name.Last
+		mac := fmt.Sprintf("%s/profiles/user%d/data/chain/bitcoin/regtest/admin.macaroon", ui.workingdir, i+1)
 		view := &cfgview{}
 		view.N = i + 1
 		view.Rpc = view.N + BASE_PORT
 		view.Listen = view.N + BASE_PORT + 1000
 		view.Rest = view.N + BASE_PORT + 2000
-
+		view.Macaroon = mac
 		view.Name = n.Name.Last
 		err := tmpl.Execute(&b, view)
 		if err != nil {
 			panic(err)
 		}
-		mac := fmt.Sprintf("%s/profiles/user%d/data/chain/bitcoin/regtest/admin.macaroon", ui.workingdir, i+1)
 		cmd := fmt.Sprintf("lncli --rpcserver=localhost:%d --macaroonpath=profiles/user%d/data/chain/bitcoin/regtest/admin.macaroon", BASE_PORT+i+1, i+1)
 		u.aliases[n.Name.Last] = &alias{&name, &cmd, BASE_PORT + i + 1, mac}
 

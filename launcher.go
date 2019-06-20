@@ -219,7 +219,7 @@ func (l *Launcher) connectPeers() {
 			continue
 		}
 
-		n := l.nChannels
+		n := rand.Intn(l.nChannels) + 1
 
 		for c := 0; c < n; c++ {
 			src := v
@@ -303,7 +303,7 @@ func (l *Launcher) launchNodes() {
 	log("connecting peers")
 	l.connectPeers()
 
-	time.Sleep(200 * time.Millisecond)
+	time.Sleep(2000 * time.Millisecond)
 
 	log("funding nodes")
 	l.fundNodes()

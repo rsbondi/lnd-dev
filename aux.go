@@ -24,11 +24,12 @@ type apiresults struct {
 }
 
 type cfgview struct {
-	N      int
-	Rpc    int
-	Rest   int
-	Listen int
-	Name   string
+	N        int
+	Rpc      int
+	Rest     int
+	Listen   int
+	Name     string
+	Macaroon string
 }
 
 const configtemplate = `[Application Options]
@@ -40,6 +41,7 @@ rpclisten=localhost:{{.Rpc}}
 listen=localhost:{{.Listen}}
 restlisten=localhost:{{.Rest}}
 alias={{.Name}}
+adminmacaroonpath={{.Macaroon}}
 
 [Bitcoin]
 bitcoin.regtest=1
