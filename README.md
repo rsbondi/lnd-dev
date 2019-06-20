@@ -3,7 +3,7 @@
 Generate a random development environment for lnd with established funding of channels
 
 ## Motivation
-Inspired by [lnet](https://github.com/cdecker/lnet), this is a development tool that creates random nodes, connects them, and funds channels.
+Inspired by [lnet](https://github.com/cdecker/lnet), this is a development tool that creates random nodes, connects them, funds channels, and provides a UI for managing.
 You can begin development once launched without a complex procedure to get you started
 
 ## Features
@@ -17,3 +17,6 @@ You can begin development once launched without a complex procedure to get you s
 * bitcoind (runs regtest, must have coins)
 * lnd
 
+## UI Anomalies
+* UI component copies wrapped lines with `\n` so standard `Ctrl-Shift-V` does not work with wrapped lines.  Use `Ctrl-V` instead
+* Does not do interactive prompts so for example use `-f` or `--force` options with `payinvoice` or `sendpayment`, may be others?
