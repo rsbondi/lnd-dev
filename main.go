@@ -70,7 +70,15 @@ func setUI() {
 	status := make(chan string)
 	done := make(chan int)
 	logger = NewLogger(status, done)
-	launcher := NewLauncher(ui.workingdir, ui.aliases, n)
+	lndaliases := make(map[string]*alias)
+	for _, v := range ui.aliases {
+		if *v.Name == "Regtest" {
+			continue
+		}
+		lndaliases[*v.Name] = v
+	}
+
+	launcher := NewLauncher(ui.workingdir, lndaliases, n)
 
 	go launcher.launchNodes()
 	swapForm()

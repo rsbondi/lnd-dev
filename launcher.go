@@ -29,10 +29,7 @@ func NewLauncher(wd string, aliases map[string]*alias, chans int) *Launcher {
 
 func (l *Launcher) createWallets() {
 	for _, v := range l.aliases {
-		if *v.Name == "Regtest" {
-			continue
-		}
-
+		logger.log("creating wallet: " + *v.Name)
 		ln := unlocker(v)
 
 		ctx := context.Background()
@@ -50,10 +47,7 @@ func (l *Launcher) createWallets() {
 
 func (l *Launcher) launchLnd() {
 	u := 1
-	for _, v := range l.aliases {
-		if *v.Name == "Regtest" {
-			continue
-		}
+	for range l.aliases {
 		cmd := exec.Command("lnd", fmt.Sprintf("--configfile=%s/profiles/user%d/lnd.conf", l.workingdir, u))
 
 		err := cmd.Start()
@@ -69,9 +63,6 @@ func (l *Launcher) launchLnd() {
 
 func (l *Launcher) openChannels() {
 	for _, a := range l.aliases {
-		if *a.Name == "Regtest" {
-			continue
-		}
 		rpc := grpcClient(a)
 		ctx := context.Background()
 		for _, c := range connections[*a.Name] {
@@ -96,9 +87,6 @@ func (l *Launcher) openChannels() {
 
 func (l *Launcher) fundNodes() {
 	for _, a := range l.aliases {
-		if *a.Name == "Regtest" {
-			continue
-		}
 		rpc := grpcClient(a)
 		ctx := context.Background()
 
@@ -126,19 +114,13 @@ func (l *Launcher) connectPeers() {
 	connections = make(map[string][]string)
 	peerinfo = make(map[string]*lnrpc.GetInfoResponse)
 	for key := range l.aliases {
-		if key != "Regtest" {
-			aliaskeys = append(aliaskeys, key)
-			connections[key] = []string{}
-		}
+		aliaskeys = append(aliaskeys, key)
+		connections[key] = []string{}
 	}
 
 	rand.Seed(time.Now().UnixNano())
 
 	for _, v := range l.aliases {
-		if *v.Name == "Regtest" {
-			continue
-		}
-
 		n := rand.Intn(l.nChannels) + 1
 
 		for c := 0; c < n; c++ {
@@ -208,7 +190,6 @@ func (l *Launcher) launchNodes() {
 	l.launchLnd()
 
 	l.generate(10) // syncs with chain
-	logger.log("creating wallets (takes a while)")
 	l.createWallets()
 
 	l.connectPeers()
