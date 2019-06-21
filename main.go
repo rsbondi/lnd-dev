@@ -5,13 +5,15 @@ import (
 	"github.com/gdamore/tcell"
 	"github.com/rivo/tview"
 	"strconv"
+	"time"
 )
 
 var flex *tview.Flex
 var form *tview.Form
 var app *tview.Application
 var ui *MainUI
-var nNodes, nChannels string
+var nNodes, nChannels, nPayments string
+var act *Activity
 
 func main() {
 
@@ -23,6 +25,9 @@ func main() {
 		}).
 		AddInputField("Max Connections per Node", "", 5, tview.InputFieldInteger, func(t string) {
 			nChannels = t
+		}).
+		AddInputField("Number of Random Payments", "", 5, tview.InputFieldInteger, func(t string) {
+			nPayments = t
 		}).
 		AddButton("Ok", setUI).
 		AddButton("Cancel", func() {
@@ -79,9 +84,9 @@ func setUI() {
 	}
 
 	launcher := NewLauncher(ui.workingdir, lndaliases, n)
-
 	go launcher.launchNodes()
 	swapForm()
+	next := make(chan int)
 	go (func() {
 		for {
 			select {
@@ -89,9 +94,18 @@ func setUI() {
 				fmt.Fprintln(ui.cliresult, s)
 				app.Draw()
 			case <-done:
+				next <- 0
 				return
 			}
 		}
+	})()
+
+	npays, _ := strconv.Atoi(nPayments)
+	act = NewActivity(npays, lndaliases)
+	go (func() {
+		<-next
+		time.Sleep(3 * time.Second)
+		act.Run()
 	})()
 
 }
