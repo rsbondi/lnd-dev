@@ -79,7 +79,6 @@ func (u *MainUI) cliInputCapture(key *tcell.EventKey) *tcell.EventKey {
 			app.Draw()
 
 			cmd := u.aliases[cmdnode].Command(args...)
-			cmd.Stdin = strings.NewReader("some input")
 			out, err := cmd.CombinedOutput()
 			if err != nil {
 				fmt.Fprintf(u.cliresult, "%s\n", err.Error())
@@ -92,7 +91,7 @@ func (u *MainUI) cliInputCapture(key *tcell.EventKey) *tcell.EventKey {
 				app.Draw()
 			}
 			u.nodes[cmdnode].Buff += cmdfmt
-			u.nodes[cmdnode].Buff += string(out)
+			u.nodes[cmdnode].Buff += string(out) + "\n"
 			u.nodes[cmdnode].Cmds = append(u.nodes[cmdnode].Cmds, u.cli.GetText())
 			*u.nodes[cmdnode].CmdIndex = len(u.nodes[cmdnode].Cmds)
 
