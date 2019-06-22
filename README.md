@@ -24,6 +24,19 @@ You can begin development once launched without a complex procedure to get you s
 1) Enter number of random payments to generate
     * these will be running in the background
     * set to zero or leave blank if no activity desired
+1) Once launched, enter commands, switch nodes etc.
+    * the up and down arrows will scroll previous commands from the prompt
+    * switch panes and nodes per shortcuts below
+
+## Shortcuts
+
+|command|action                       |
+|-------|-----------------------------|
+|Ctrl-N |Opens node selection dropdown|
+|Ctrl-I |Move to command prompt       |
+|Ctrl-O |Move to output pane          |
+|Ctrl-V |From prompt, paste copied text.  This is a hack for text copied with mouse from output pane|
+
 
 ## UI Anomalies
 * UI component copies wrapped lines with `\n` so standard `Ctrl-Shift-V` does not work with wrapped lines.  Use `Ctrl-V` instead

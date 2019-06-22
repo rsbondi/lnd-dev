@@ -92,7 +92,11 @@ func (u *MainUI) cliInputCapture(key *tcell.EventKey) *tcell.EventKey {
 			}
 			u.nodes[cmdnode].Buff += cmdfmt
 			u.nodes[cmdnode].Buff += string(out) + "\n"
-			u.nodes[cmdnode].Cmds = append(u.nodes[cmdnode].Cmds, u.cli.GetText())
+
+			cmdsize := len(u.nodes[cmdnode].Cmds)
+			if *u.nodes[cmdnode].CmdIndex == -1 || u.nodes[cmdnode].Cmds[cmdsize-1] != text {
+				u.nodes[cmdnode].Cmds = append(u.nodes[cmdnode].Cmds, text)
+			}
 			*u.nodes[cmdnode].CmdIndex = len(u.nodes[cmdnode].Cmds)
 
 		})()
