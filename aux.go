@@ -78,6 +78,20 @@ bitcoind.zmqpubrawblock=tcp://127.0.0.1:28332
 bitcoind.zmqpubrawtx=tcp://127.0.0.1:28333
 `
 
+const bitcoinconf = `server=1
+txindex=1
+daemon=1
+regtest=1
+maxconnections=10
+rpcuser=kek
+rpcpassword=kek
+minrelaytxfee=0.00000000
+incrementalrelayfee=0.00000010
+zmqpubrawblock=tcp://127.0.0.1:28332
+zmqpubrawtx=tcp://127.0.0.1:28333
+datadir=profiles/bitcoin
+`
+
 type node struct {
 	Buff     string
 	Cmds     []string

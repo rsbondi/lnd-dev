@@ -1,4 +1,4 @@
-## lnd-dev - WIP
+## lnd-dev
 
 Generate a random development environment for lnd with established funding of channels
 

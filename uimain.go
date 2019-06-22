@@ -151,7 +151,7 @@ func (u *MainUI) populateList(r []apiname) {
 		})
 	}
 
-	confcmd := fmt.Sprintf("bitcoin-cli -conf=%s/bitcoin.conf", u.workingdir)
+	confcmd := fmt.Sprintf("bitcoin-cli -conf=%s//profiles/bitcoin/bitcoin.conf", u.workingdir)
 	name := "Regtest"
 	u.aliases[name] = &alias{&name, &confcmd, 0, ""}
 	s := -1
@@ -166,7 +166,7 @@ func (u *MainUI) populateList(r []apiname) {
 	})
 	u.list.AddOption("Quit", func() {
 		// kill bitcoind
-		cmd := exec.Command("bitcoin-cli", fmt.Sprintf("-conf=%s/bitcoin.conf", u.workingdir), "stop")
+		cmd := exec.Command("bitcoin-cli", fmt.Sprintf("-conf=%s//profiles/bitcoin/bitcoin.conf", u.workingdir), "stop")
 		cmd.Run()
 
 		for i := 1; i < len(u.aliases); i++ {
@@ -215,5 +215,12 @@ func (u *MainUI) defineNodes(r []apiname) {
 		}
 		defer f.Close()
 		_, err = f.Write(b.Bytes())
+
 	}
+	f, err := os.Create("profiles/bitcoin/bitcoin.conf")
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	_, err = f.Write([]byte(bitcoinconf))
 }

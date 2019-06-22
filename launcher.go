@@ -97,7 +97,7 @@ func (l *Launcher) fundNodes() {
 			logger.logerr("fund node address failure", err.Error())
 			continue
 		}
-		cmd := exec.Command("bitcoin-cli", fmt.Sprintf("-conf=%s/bitcoin.conf", l.workingdir), "sendtoaddress", addr.Address, "1")
+		cmd := exec.Command("bitcoin-cli", fmt.Sprintf("-conf=%s/profiles/bitcoin/bitcoin.conf", l.workingdir), "sendtoaddress", addr.Address, "1")
 		err = cmd.Run()
 
 		if err != nil {
@@ -175,7 +175,7 @@ func (l *Launcher) connectPeers() {
 func (l *Launcher) launchNodes() {
 	logger.log("launching bitcoin node")
 
-	cmd := exec.Command("bitcoind", fmt.Sprintf("-conf=%s/bitcoin.conf", l.workingdir))
+	cmd := exec.Command("bitcoind", fmt.Sprintf("-conf=%s//profiles/bitcoin/bitcoin.conf", l.workingdir))
 
 	err := cmd.Start()
 
@@ -206,12 +206,12 @@ func (l *Launcher) launchNodes() {
 }
 
 func (l *Launcher) generate(n int) {
-	out, err := exec.Command("bitcoin-cli", fmt.Sprintf("-conf=%s/bitcoin.conf", l.workingdir), "getnewaddress").Output()
+	out, err := exec.Command("bitcoin-cli", fmt.Sprintf("-conf=%s//profiles/bitcoin/bitcoin.conf", l.workingdir), "getnewaddress").Output()
 	if err != nil {
 		logger.logerr("get new address fail", err.Error())
 	}
 
-	cmd := exec.Command("bitcoin-cli", fmt.Sprintf("-conf=%s/bitcoin.conf", l.workingdir), "generatetoaddress", fmt.Sprintf("%d", n), string(out))
+	cmd := exec.Command("bitcoin-cli", fmt.Sprintf("-conf=%s//profiles/bitcoin/bitcoin.conf", l.workingdir), "generatetoaddress", fmt.Sprintf("%d", n), string(out))
 	err = cmd.Run()
 
 	if err != nil {
