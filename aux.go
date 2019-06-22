@@ -30,6 +30,7 @@ type cfgview struct {
 	Listen   int
 	Name     string
 	Macaroon string
+	User     string
 }
 
 type Logger struct {
@@ -56,8 +57,8 @@ func (l *Logger) logerr(s string, e string) {
 var logger *Logger
 
 const configtemplate = `[Application Options]
-datadir=profiles/user{{.N}}/data
-logdir=profiles/user{{.N}}/log
+datadir={{.User}}/.lndev/user{{.N}}/data
+logdir={{.User}}/.lndev/user{{.N}}/log
 debuglevel=info
 debughtlc=true
 rpclisten=localhost:{{.Rpc}}
@@ -89,7 +90,7 @@ minrelaytxfee=0.00000000
 incrementalrelayfee=0.00000010
 zmqpubrawblock=tcp://127.0.0.1:28332
 zmqpubrawtx=tcp://127.0.0.1:28333
-datadir=profiles/bitcoin
+datadir={{.}}/.lndev/bitcoin
 `
 
 type node struct {

@@ -83,7 +83,7 @@ func setUI() {
 		lndaliases[*v.Name] = v
 	}
 
-	launcher := NewLauncher(ui.workingdir, lndaliases, n)
+	launcher := NewLauncher(lndaliases, n)
 	go launcher.launchNodes()
 	swapForm()
 	next := make(chan int)

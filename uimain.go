@@ -8,37 +8,40 @@ import (
 	"github.com/rivo/tview"
 	"os"
 	"os/exec"
+	"os/user"
 	"path"
 	"strings"
 	"text/template"
 )
 
 type MainUI struct {
-	cli                     *tview.InputField
-	list                    *tview.DropDown
-	cliresult               *tview.TextView
-	currentnode, workingdir string
-	aliases                 map[string]*alias
-	nodes                   map[string]*node
+	cli         *tview.InputField
+	list        *tview.DropDown
+	cliresult   *tview.TextView
+	currentnode string
+	aliases     map[string]*alias
+	nodes       map[string]*node
 }
 
+var userdir string
+
 func NewMainUI() *MainUI {
-	dir, err := os.Getwd()
+	usr, err := user.Current()
 	if err != nil {
-		panic(err)
+		panic("current user fail: " + err.Error())
 	}
-	workingdir := dir
-	dir = path.Join(workingdir, "profiles")
+	userdir = usr.HomeDir
+
+	dir := path.Join(userdir, ".lndev")
 	ensureDir(dir)
 	ensureDir(path.Join(dir, "bitcoin"))
 
 	ui := &MainUI{
-		cliresult:  tview.NewTextView().SetDynamicColors(true),
-		cli:        tview.NewInputField(),
-		list:       tview.NewDropDown(),
-		workingdir: workingdir,
-		aliases:    make(map[string]*alias),
-		nodes:      make(map[string]*node),
+		cliresult: tview.NewTextView().SetDynamicColors(true),
+		cli:       tview.NewInputField(),
+		list:      tview.NewDropDown(),
+		aliases:   make(map[string]*alias),
+		nodes:     make(map[string]*node),
 	}
 	ui.cliresult.SetBorder(false)
 
@@ -151,7 +154,7 @@ func (u *MainUI) populateList(r []apiname) {
 		})
 	}
 
-	confcmd := fmt.Sprintf("bitcoin-cli -conf=%s//profiles/bitcoin/bitcoin.conf", u.workingdir)
+	confcmd := fmt.Sprintf("bitcoin-cli -conf=%s//.lndev/bitcoin/bitcoin.conf", userdir)
 	name := "Regtest"
 	u.aliases[name] = &alias{&name, &confcmd, 0, ""}
 	s := -1
@@ -166,17 +169,17 @@ func (u *MainUI) populateList(r []apiname) {
 	})
 	u.list.AddOption("Quit", func() {
 		// kill bitcoind
-		cmd := exec.Command("bitcoin-cli", fmt.Sprintf("-conf=%s//profiles/bitcoin/bitcoin.conf", u.workingdir), "stop")
+		cmd := exec.Command("bitcoin-cli", fmt.Sprintf("-conf=%s//.lndev/bitcoin/bitcoin.conf", userdir), "stop")
 		cmd.Run()
 
 		for i := 1; i < len(u.aliases); i++ {
 			host := fmt.Sprintf("--rpcserver=localhost:%d", BASE_PORT+i)
-			macaroon := fmt.Sprintf("--macaroonpath=profiles/user%d/data/chain/bitcoin/regtest/admin.macaroon", i)
+			macaroon := fmt.Sprintf("--macaroonpath=%s/.lndev/user%d/data/chain/bitcoin/regtest/admin.macaroon", userdir, i)
 			cmd := exec.Command("lncli", host, macaroon, "stop")
 			cmd.Run()
 		}
 
-		os.RemoveAll(fmt.Sprintf("%s/profiles", u.workingdir))
+		os.RemoveAll(fmt.Sprintf("%s/.lndev", userdir))
 
 		app.Stop()
 	})
@@ -191,7 +194,7 @@ func (u *MainUI) defineNodes(r []apiname) {
 	for i, n := range r {
 		var b bytes.Buffer
 		name := n.Name.Last
-		mac := fmt.Sprintf("%s/profiles/user%d/data/chain/bitcoin/regtest/admin.macaroon", ui.workingdir, i+1)
+		mac := fmt.Sprintf("%s/.lndev/user%d/data/chain/bitcoin/regtest/admin.macaroon", userdir, i+1)
 		view := &cfgview{}
 		view.N = i + 1
 		view.Rpc = view.N + BASE_PORT
@@ -199,17 +202,18 @@ func (u *MainUI) defineNodes(r []apiname) {
 		view.Rest = view.N + BASE_PORT + 2000
 		view.Macaroon = mac
 		view.Name = n.Name.Last
+		view.User = userdir
 		err := tmpl.Execute(&b, view)
 		if err != nil {
 			panic(err)
 		}
-		cmd := fmt.Sprintf("lncli --rpcserver=localhost:%d --macaroonpath=profiles/user%d/data/chain/bitcoin/regtest/admin.macaroon", BASE_PORT+i+1, i+1)
+		cmd := fmt.Sprintf("lncli --rpcserver=localhost:%d --macaroonpath=%s/.lndev/user%d/data/chain/bitcoin/regtest/admin.macaroon", BASE_PORT+i+1, userdir, i+1)
 		u.aliases[n.Name.Last] = &alias{&name, &cmd, BASE_PORT + i + 1, mac}
 
-		udir := fmt.Sprintf("profiles/user%d", i+1)
+		udir := fmt.Sprintf("%s/.lndev/user%d", userdir, i+1)
 		ensureDir(udir)
 
-		f, err := os.Create(fmt.Sprintf("profiles/user%d/lnd.conf", i+1))
+		f, err := os.Create(fmt.Sprintf("%s/.lndev/user%d/lnd.conf", userdir, i+1))
 		if err != nil {
 			panic(err)
 		}
@@ -217,10 +221,13 @@ func (u *MainUI) defineNodes(r []apiname) {
 		_, err = f.Write(b.Bytes())
 
 	}
-	f, err := os.Create("profiles/bitcoin/bitcoin.conf")
+	f, err := os.Create(fmt.Sprintf("%s/.lndev/bitcoin/bitcoin.conf", userdir))
 	if err != nil {
 		panic(err)
 	}
+	tmpl, _ = template.New("bitcoin").Parse(bitcoinconf)
+	var b bytes.Buffer
+	err = tmpl.Execute(&b, userdir)
 	defer f.Close()
-	_, err = f.Write([]byte(bitcoinconf))
+	_, err = f.Write(b.Bytes())
 }
