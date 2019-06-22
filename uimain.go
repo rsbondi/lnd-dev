@@ -63,35 +63,40 @@ func NewMainUI() *MainUI {
 
 func (u *MainUI) cliInputCapture(key *tcell.EventKey) *tcell.EventKey {
 	if key.Key() == tcell.KeyEnter {
-		text := u.cli.GetText()
-		cmdfmt := fmt.Sprintf("[#00aaaa]# %s[white]\n", text)
-		fmt.Fprintf(u.cliresult, cmdfmt)
-		if text == "" {
-			fmt.Fprintf(u.cliresult, "Please provide a command to execute\n")
-			return key
-		}
-		args, err := parseCommandLine(text)
-		if err != nil {
-			fmt.Fprintf(u.cliresult, "%s\n", err.Error())
-		}
+		go (func() {
+			cmdnode := u.currentnode
+			text := u.cli.GetText()
+			cmdfmt := fmt.Sprintf("[#00aaaa]# %s[white]\n", text)
+			if text == "" {
+				fmt.Fprintf(u.cliresult, "Please provide a command to execute\n")
+			}
+			args, err := parseCommandLine(text)
+			if err != nil {
+				fmt.Fprintf(u.cliresult, "%s\n", err.Error())
+			}
 
-		cmd := u.aliases[u.currentnode].Command(args...)
-		cmd.Stdin = strings.NewReader("some input")
-		// var out bytes.Buffer
-		// cmd.Stdout = &out
-		out, err := cmd.CombinedOutput()
-		if err != nil {
-			fmt.Fprintf(u.cliresult, "%s\n", err.Error())
-		}
+			u.cli.SetText("")
+			app.Draw()
 
-		fmt.Fprintf(u.cliresult, "%s\n", tview.Escape(string(out)))
-		u.cliresult.ScrollToEnd()
-		u.nodes[u.currentnode].Buff += cmdfmt
-		u.nodes[u.currentnode].Buff += string(out)
-		u.nodes[u.currentnode].Cmds = append(u.nodes[u.currentnode].Cmds, u.cli.GetText())
-		*u.nodes[u.currentnode].CmdIndex = len(u.nodes[u.currentnode].Cmds)
+			cmd := u.aliases[cmdnode].Command(args...)
+			cmd.Stdin = strings.NewReader("some input")
+			out, err := cmd.CombinedOutput()
+			if err != nil {
+				fmt.Fprintf(u.cliresult, "%s\n", err.Error())
+			}
 
-		u.cli.SetText("")
+			if cmdnode == u.currentnode {
+				fmt.Fprintf(u.cliresult, cmdfmt)
+				fmt.Fprintf(u.cliresult, "%s\n", tview.Escape(string(out)))
+				u.cliresult.ScrollToEnd()
+				app.Draw()
+			}
+			u.nodes[cmdnode].Buff += cmdfmt
+			u.nodes[cmdnode].Buff += string(out)
+			u.nodes[cmdnode].Cmds = append(u.nodes[cmdnode].Cmds, u.cli.GetText())
+			*u.nodes[cmdnode].CmdIndex = len(u.nodes[cmdnode].Cmds)
+
+		})()
 	} else if key.Key() == tcell.KeyUp {
 		index := u.nodes[u.currentnode].CmdIndex
 		if *index > 0 {
