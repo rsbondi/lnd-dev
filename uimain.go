@@ -77,17 +77,17 @@ func (u *MainUI) cliInputCapture(key *tcell.EventKey) *tcell.EventKey {
 
 		cmd := u.aliases[u.currentnode].Command(args...)
 		cmd.Stdin = strings.NewReader("some input")
-		var out bytes.Buffer
-		cmd.Stdout = &out
-		err = cmd.Run()
+		// var out bytes.Buffer
+		// cmd.Stdout = &out
+		out, err := cmd.CombinedOutput()
 		if err != nil {
 			fmt.Fprintf(u.cliresult, "%s\n", err.Error())
 		}
 
-		fmt.Fprintf(u.cliresult, "%s\n", tview.Escape(out.String()))
+		fmt.Fprintf(u.cliresult, "%s\n", tview.Escape(string(out)))
 		u.cliresult.ScrollToEnd()
 		u.nodes[u.currentnode].Buff += cmdfmt
-		u.nodes[u.currentnode].Buff += out.String()
+		u.nodes[u.currentnode].Buff += string(out)
 		u.nodes[u.currentnode].Cmds = append(u.nodes[u.currentnode].Cmds, u.cli.GetText())
 		*u.nodes[u.currentnode].CmdIndex = len(u.nodes[u.currentnode].Cmds)
 
