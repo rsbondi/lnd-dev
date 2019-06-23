@@ -2,13 +2,14 @@ package main
 
 import (
 	"fmt"
+	"github.com/atotto/clipboard"
 	"github.com/gdamore/tcell"
 	"github.com/rivo/tview"
 	"strconv"
 	"time"
 )
 
-const VERSION = "0.0.1"
+const VERSION = "0.0.2-WIP"
 
 var flex *tview.Flex
 var form *tview.Form
@@ -67,6 +68,11 @@ func setUI() {
 		} else if key.Key() == tcell.KeyCtrlI {
 			ui.cli.SetText("")
 			app.SetFocus(ui.cli)
+		} else if key.Key() == tcell.KeyCtrlA {
+			err := clipboard.WriteAll(ui.nodes[ui.currentnode].Buff)
+			if err != nil {
+				fmt.Fprintf(ui.cliresult, "%s\n", err.Error())
+			}
 		} else if key.Key() == tcell.KeyCtrlO {
 			app.SetFocus(ui.cliresult)
 		}

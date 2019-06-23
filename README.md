@@ -36,6 +36,7 @@ You can begin development once launched without a complex procedure to get you s
 |Ctrl-I |Move to command prompt       |
 |Ctrl-O |Move to output pane          |
 |Ctrl-L |Clear output pane while in it|
+|Ctrl-A |Copy current output buffer   |
 |Ctrl-V |From prompt, paste copied text.  This is a hack for text copied with mouse from output pane|
 
 
