@@ -35,6 +35,7 @@ You can begin development once launched without a complex procedure to get you s
 |Ctrl-N |Opens node selection dropdown|
 |Ctrl-I |Move to command prompt       |
 |Ctrl-O |Move to output pane          |
+|Ctrl-L |Clear output pane while in it|
 |Ctrl-V |From prompt, paste copied text.  This is a hack for text copied with mouse from output pane|
 
 
