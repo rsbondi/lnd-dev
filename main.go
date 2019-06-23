@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const VERSION = "0.0.1"
+
 var flex *tview.Flex
 var form *tview.Form
 var app *tview.Application
@@ -33,7 +35,7 @@ func main() {
 		AddButton("Cancel", func() {
 			app.Stop()
 		})
-	form.SetBorder(true).SetTitle("Enter node data").SetTitleAlign(tview.AlignLeft)
+	form.SetBorder(true).SetTitle(fmt.Sprintf("Enter parameters (lnd-dev version %s)", VERSION)).SetTitleAlign(tview.AlignLeft)
 
 	flex = tview.NewFlex().SetDirection(tview.FlexRow)
 	flex.AddItem(form, 0, 5, true)

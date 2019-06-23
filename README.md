@@ -46,3 +46,8 @@ You can begin development once launched without a complex procedure to get you s
 * change `fmt.Sprintf`s to `path.Join` for windows
 
 [See video](https://www.youtube.com/watch?v=47NPohE9WGU&feature=youtu.be)
+
+## Binaries
+[linux_amd64](https://moonbreeze.richardbondi.net/linux/lndev-0.0.1-linux_amd64.zip)
+
+[darwin_amd64](https://moonbreeze.richardbondi.net/mac/lndev-0.0.1-darwin_amd64.zip)
