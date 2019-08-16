@@ -31,8 +31,15 @@ func NewMainUI() *MainUI {
 		panic("current user fail: " + err.Error())
 	}
 	userdir = usr.HomeDir
-
 	dir := path.Join(userdir, ".lndev")
+
+	if _, err := os.Stat(dir); !os.IsNotExist(err) {
+		err = os.RemoveAll(fmt.Sprintf("%s/.lndev", userdir))
+		if err != nil {
+			panic(err)
+		}
+	}
+
 	ensureDir(dir)
 	ensureDir(path.Join(dir, "bitcoin"))
 
